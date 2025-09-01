@@ -53,6 +53,9 @@ LARGE_FONT_SIZE = 100
 HEART_SIZE = 35
 HEART_PADDING = 8
 
+# Параметры стен
+WALL_THICKNESS = 3
+
 # Файлы ресурсов
 MUSIC_FILE = 'chiptune-ending-212716.mp3'
 HEART_IMAGE_FILE = 'heart.png'
@@ -348,15 +351,15 @@ while running:
         ball.y += ball_speed_y
         
         # Убеждаемся, что мяч не выходит за границы и не застревает в стенах
-        if ball.left < 0:
-            ball.left = 0
+        if ball.left <= WALL_THICKNESS:
+            ball.left = WALL_THICKNESS
             ball_speed_x = abs(ball_speed_x)
-        elif ball.right > WIDTH:
-            ball.right = WIDTH
+        elif ball.right >= WIDTH - WALL_THICKNESS:
+            ball.right = WIDTH - WALL_THICKNESS
             ball_speed_x = -abs(ball_speed_x)
         
-        if ball.top < 0:
-            ball.top = 0
+        if ball.top <= WALL_THICKNESS:
+            ball.top = WALL_THICKNESS
             ball_speed_y = abs(ball_speed_y)
 
         # Отражение от платформы с сохранением скорости
@@ -453,6 +456,11 @@ while running:
     # =============================================================================
     # ОТРИСОВКА
     # =============================================================================
+
+    # Отрисовка стен
+    pygame.draw.rect(game_surface, WHITE, (0, 0, WALL_THICKNESS, HEIGHT))  # Левая стена
+    pygame.draw.rect(game_surface, WHITE, (WIDTH - WALL_THICKNESS, 0, WALL_THICKNESS, HEIGHT))  # Правая стена
+    pygame.draw.rect(game_surface, WHITE, (0, 0, WIDTH, WALL_THICKNESS))  # Верхняя стена
 
     # Отрисовка кирпичей
     for brick_data in bricks:
