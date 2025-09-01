@@ -33,6 +33,7 @@ PADDLE_SPEED = 10
 BALL_RADIUS = 15
 BASE_BALL_SPEED = math.sqrt(5**2 + 5**2)  # sqrt(50) ≈ 7.07
 SPEED_INCREASE_PER_LEVEL = 0.7
+MAX_BALL_SPEED = 12  # Максимальная скорость мяча для предотвращения туннелирования
 
 # Параметры кирпичей
 BRICK_ROWS = 5
@@ -171,6 +172,8 @@ def setup_level(level_num):
     global ball, ball_speed_x, ball_speed_y, paddle, bricks, current_speed_magnitude, level
 
     current_speed_magnitude = BASE_BALL_SPEED + (level_num - 1) * SPEED_INCREASE_PER_LEVEL
+    # Ограничиваем максимальную скорость для предотвращения туннелирования
+    current_speed_magnitude = min(current_speed_magnitude, MAX_BALL_SPEED)
 
     ball_speed_x = normalized_initial_vx * current_speed_magnitude
     ball_speed_y = normalized_initial_vy * current_speed_magnitude
@@ -287,19 +290,18 @@ while running:
         # Движение мяча
         ball.x += ball_speed_x
         ball.y += ball_speed_y
-
-        # Отражение от боковых стенок
-        if ball.left <= 0:
+        
+        # Убеждаемся, что мяч не выходит за границы и не застревает в стенах
+        if ball.left < 0:
             ball.left = 0
-            ball_speed_x = -ball_speed_x
-        elif ball.right >= WIDTH:
+            ball_speed_x = abs(ball_speed_x)
+        elif ball.right > WIDTH:
             ball.right = WIDTH
-            ball_speed_x = -ball_speed_x
-
-        # Отражение от верхней стенки
-        if ball.top <= 0:
+            ball_speed_x = -abs(ball_speed_x)
+        
+        if ball.top < 0:
             ball.top = 0
-            ball_speed_y = -ball_speed_y
+            ball_speed_y = abs(ball_speed_y)
 
         # Отражение от платформы с сохранением скорости
         if ball.colliderect(paddle):
@@ -329,16 +331,38 @@ while running:
             if brick_data['visible']:
                 all_bricks_destroyed = False
                 if ball.colliderect(brick_data['rect']):
-                    prev_ball_speed_y = ball_speed_y
                     brick_data['visible'] = False
                     score += SCORE_PER_BRICK
 
-                    ball_speed_y = -ball_speed_y
-
-                    if prev_ball_speed_y > 0:
-                         ball.bottom = brick_data['rect'].top
-                    elif prev_ball_speed_y < 0:
-                         ball.top = brick_data['rect'].bottom
+                    # Определяем с какой стороны кирпича произошло столкновение
+                    ball_center_x = ball.centerx
+                    ball_center_y = ball.centery
+                    brick_center_x = brick_data['rect'].centerx
+                    brick_center_y = brick_data['rect'].centery
+                    
+                    # Вычисляем перекрытие по осям
+                    overlap_x = min(ball.right - brick_data['rect'].left, brick_data['rect'].right - ball.left)
+                    overlap_y = min(ball.bottom - brick_data['rect'].top, brick_data['rect'].bottom - ball.top)
+                    
+                    # Столкновение произошло с той стороны, где перекрытие меньше
+                    if overlap_x < overlap_y:
+                        # Столкновение с левой или правой стороной кирпича
+                        ball_speed_x = -ball_speed_x
+                        if ball_center_x < brick_center_x:
+                            # Столкновение с левой стороной кирпича
+                            ball.right = brick_data['rect'].left
+                        else:
+                            # Столкновение с правой стороной кирпича
+                            ball.left = brick_data['rect'].right
+                    else:
+                        # Столкновение с верхней или нижней стороной кирпича
+                        ball_speed_y = -ball_speed_y
+                        if ball_center_y < brick_center_y:
+                            # Столкновение с верхней стороной кирпича
+                            ball.bottom = brick_data['rect'].top
+                        else:
+                            # Столкновение с нижней стороной кирпича
+                            ball.top = brick_data['rect'].bottom
 
                     break  # Обрабатываем только одно столкновение за кадр
 
@@ -366,6 +390,7 @@ while running:
                 paddle.y = initial_paddle_y
                 # Пересчитываем компоненты скорости
                 current_speed_magnitude = BASE_BALL_SPEED + (level - 1) * SPEED_INCREASE_PER_LEVEL
+                current_speed_magnitude = min(current_speed_magnitude, MAX_BALL_SPEED)
                 ball_speed_x = normalized_initial_vx * current_speed_magnitude
                 ball_speed_y = normalized_initial_vy * current_speed_magnitude
 
