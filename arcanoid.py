@@ -53,6 +53,10 @@ LARGE_FONT_SIZE = 100
 HEART_SIZE = 35
 HEART_PADDING = 8
 
+# Параметры стен
+WALL_WIDTH = 5
+WALL_COLOR = (100, 100, 100)  # Серый цвет для стен
+
 # Файлы ресурсов
 MUSIC_FILE = 'chiptune-ending-212716.mp3'
 HEART_IMAGE_FILE = 'heart.png'
@@ -255,13 +259,29 @@ def render_ui(win, font, large_font):
     for i in range(lives):
         heart_x = heart_start_x + i * (HEART_SIZE + HEART_PADDING)
         win.blit(heart_image, (heart_x, heart_start_y))
+    
+    # Кнопка полноэкранного режима
+    fullscreen_button_text = "⛶" if not is_fullscreen else "⊞"
+    button_font = pygame.font.Font(None, 32)
+    fs_text = button_font.render(fullscreen_button_text, True, WHITE)
+    fs_button_rect = pygame.Rect(WIDTH - 40, 60, 30, 30)
+    
+    # Фон кнопки
+    pygame.draw.rect(win, (60, 60, 60), fs_button_rect)
+    pygame.draw.rect(win, WHITE, fs_button_rect, 2)
+    
+    # Текст кнопки
+    text_rect = fs_text.get_rect(center=fs_button_rect.center)
+    win.blit(fs_text, text_rect)
+    
+    return fs_button_rect  # Возвращаем прямоугольник кнопки для обработки кликов
 
 def render_game_state_messages(win, font, large_font, game_state):
     """Отрисовывает сообщения состояний игры"""
     if game_state == 'waiting_to_start':
         message_text = large_font.render("АРКАНОИД", True, WHITE)
         instruction_text = font.render("Нажмите Enter, чтобы начать", True, WHITE)
-        fullscreen_text = font.render("F11 - полноэкранный режим", True, WHITE)
+        fullscreen_text = font.render("F11 - полноэкранный режим или кнопка ⛶", True, WHITE)
         message_rect = message_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 80))
         instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 30))
         fullscreen_rect = fullscreen_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10))
@@ -298,9 +318,15 @@ large_font = pygame.font.Font(None, LARGE_FONT_SIZE)
 game_over = False
 game_state = 'waiting_to_start'
 
+# Переменные для отображения стен при ударе
+wall_hit_left = 0  # Время показа левой стены (в кадрах)
+wall_hit_right = 0  # Время показа правой стены (в кадрах)
+WALL_HIT_DURATION = 10  # Длительность подсветки стены в кадрах
+
 running = True
 # Создаем виртуальную поверхность для игры (всегда стандартного размера)
 game_surface = pygame.Surface((WIDTH, HEIGHT))
+fullscreen_button_rect = None  # Прямоугольник кнопки полноэкранного режима
 
 while running:
     # Очищаем виртуальную поверхность игры
@@ -309,6 +335,22 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        
+        # Обработка кликов мыши
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Левая кнопка мыши
+                mouse_pos = event.pos
+                # В полноэкранном режиме нужно преобразовать координаты
+                if is_fullscreen:
+                    scale, offset_x, offset_y = get_display_transform()
+                    # Преобразуем координаты мыши в игровые координаты
+                    game_mouse_x = (mouse_pos[0] - offset_x) / scale
+                    game_mouse_y = (mouse_pos[1] - offset_y) / scale
+                    mouse_pos = (game_mouse_x, game_mouse_y)
+                
+                # Проверяем клик по кнопке полноэкранного режима
+                if fullscreen_button_rect and fullscreen_button_rect.collidepoint(mouse_pos):
+                    toggle_fullscreen()
         
         # Обработка нажатия клавиши F11 для полноэкранного режима
         if event.type == pygame.KEYDOWN:
@@ -351,13 +393,21 @@ while running:
         if ball.left < 0:
             ball.left = 0
             ball_speed_x = abs(ball_speed_x)
+            wall_hit_left = WALL_HIT_DURATION  # Активируем подсветку левой стены
         elif ball.right > WIDTH:
             ball.right = WIDTH
             ball_speed_x = -abs(ball_speed_x)
+            wall_hit_right = WALL_HIT_DURATION  # Активируем подсветку правой стены
         
         if ball.top < 0:
             ball.top = 0
             ball_speed_y = abs(ball_speed_y)
+        
+        # Уменьшаем счетчики подсветки стен
+        if wall_hit_left > 0:
+            wall_hit_left -= 1
+        if wall_hit_right > 0:
+            wall_hit_right -= 1
 
         # Отражение от платформы с сохранением скорости
         if ball.colliderect(paddle):
@@ -454,6 +504,14 @@ while running:
     # ОТРИСОВКА
     # =============================================================================
 
+    # Отрисовка стен (при ударе мячом)
+    if wall_hit_left > 0:
+        # Левая стена
+        pygame.draw.rect(game_surface, WALL_COLOR, (0, 0, WALL_WIDTH, HEIGHT))
+    if wall_hit_right > 0:
+        # Правая стена
+        pygame.draw.rect(game_surface, WALL_COLOR, (WIDTH - WALL_WIDTH, 0, WALL_WIDTH, HEIGHT))
+
     # Отрисовка кирпичей
     for brick_data in bricks:
         if brick_data['visible']:
@@ -465,7 +523,7 @@ while running:
         pygame.draw.ellipse(game_surface, RED, ball)
 
     # Отрисовка UI элементов
-    render_ui(game_surface, font, large_font)
+    fullscreen_button_rect = render_ui(game_surface, font, large_font)
     
     # Отрисовка сообщений состояний игры
     render_game_state_messages(game_surface, font, large_font, game_state)
