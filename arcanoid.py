@@ -109,6 +109,10 @@ def load_heart_image():
 # ИНИЦИАЛИЗАЦИЯ ИГРЫ
 # =============================================================================
 
+# Состояние полноэкранного режима
+is_fullscreen = False
+windowed_size = (WIDTH, HEIGHT)
+
 win = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Арканоид")
 
@@ -186,6 +190,44 @@ def setup_level(level_num):
 
     bricks = create_bricks()
 
+def toggle_fullscreen():
+    """Переключает полноэкранный режим"""
+    global win, is_fullscreen
+    
+    if is_fullscreen:
+        # Переключение в оконный режим
+        win = pygame.display.set_mode(windowed_size)
+        is_fullscreen = False
+    else:
+        # Переключение в полноэкранный режим
+        win = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        is_fullscreen = True
+    
+    pygame.display.set_caption("Арканоид")
+
+def get_display_transform():
+    """Возвращает параметры трансформации для отображения игры"""
+    if not is_fullscreen:
+        # В оконном режиме - без трансформации
+        return 1.0, 0, 0
+    
+    # В полноэкранном режиме - вычисляем масштаб и смещение
+    screen_width, screen_height = win.get_size()
+    game_width, game_height = WIDTH, HEIGHT
+    
+    # Вычисляем масштаб для сохранения соотношения сторон
+    scale_x = screen_width / game_width
+    scale_y = screen_height / game_height
+    scale = min(scale_x, scale_y)  # Используем меньший масштаб для сохранения пропорций
+    
+    # Вычисляем смещение для центрирования
+    scaled_width = game_width * scale
+    scaled_height = game_height * scale
+    offset_x = (screen_width - scaled_width) // 2
+    offset_y = (screen_height - scaled_height) // 2
+    
+    return scale, offset_x, offset_y
+
 def initialize_game_data():
     """Инициализирует все игровые данные (первый старт или полный перезапуск)"""
     global score, lives, level, game_over
@@ -219,10 +261,13 @@ def render_game_state_messages(win, font, large_font, game_state):
     if game_state == 'waiting_to_start':
         message_text = large_font.render("АРКАНОИД", True, WHITE)
         instruction_text = font.render("Нажмите Enter, чтобы начать", True, WHITE)
+        fullscreen_text = font.render("F11 - полноэкранный режим", True, WHITE)
         message_rect = message_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 80))
         instruction_rect = instruction_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 30))
+        fullscreen_rect = fullscreen_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 10))
         win.blit(message_text, message_rect)
         win.blit(instruction_text, instruction_rect)
+        win.blit(fullscreen_text, fullscreen_rect)
 
     elif game_state == 'level_transition':
         message_text = large_font.render(f"УРОВЕНЬ {level}", True, WHITE)
@@ -254,12 +299,23 @@ game_over = False
 game_state = 'waiting_to_start'
 
 running = True
+# Создаем виртуальную поверхность для игры (всегда стандартного размера)
+game_surface = pygame.Surface((WIDTH, HEIGHT))
+
 while running:
-    win.fill(BLACK)
+    # Очищаем виртуальную поверхность игры
+    game_surface.fill(BLACK)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        
+        # Обработка нажатия клавиши F11 для полноэкранного режима
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_F11:
+                toggle_fullscreen()
+            elif event.key == pygame.K_ESCAPE and is_fullscreen:
+                toggle_fullscreen()
 
         # Обработка событий в зависимости от состояния игры
         if game_state == 'waiting_to_start':
@@ -401,18 +457,31 @@ while running:
     # Отрисовка кирпичей
     for brick_data in bricks:
         if brick_data['visible']:
-            pygame.draw.rect(win, brick_data['color'], brick_data['rect'])
+            pygame.draw.rect(game_surface, brick_data['color'], brick_data['rect'])
 
     # Отрисовка платформы и мяча (только в состоянии 'playing')
     if game_state == 'playing':
-        pygame.draw.rect(win, WHITE, paddle)
-        pygame.draw.ellipse(win, RED, ball)
+        pygame.draw.rect(game_surface, WHITE, paddle)
+        pygame.draw.ellipse(game_surface, RED, ball)
 
     # Отрисовка UI элементов
-    render_ui(win, font, large_font)
+    render_ui(game_surface, font, large_font)
     
     # Отрисовка сообщений состояний игры
-    render_game_state_messages(win, font, large_font, game_state)
+    render_game_state_messages(game_surface, font, large_font, game_state)
+
+    # Применение трансформации для отображения
+    scale, offset_x, offset_y = get_display_transform()
+    
+    if is_fullscreen and scale != 1.0:
+        # В полноэкранном режиме: очищаем экран и масштабируем/центрируем игру
+        win.fill(BLACK)
+        scaled_surface = pygame.transform.scale(game_surface, 
+                                              (int(WIDTH * scale), int(HEIGHT * scale)))
+        win.blit(scaled_surface, (offset_x, offset_y))
+    else:
+        # В оконном режиме: просто копируем поверхность игры
+        win.blit(game_surface, (0, 0))
 
     pygame.display.flip()
     clock.tick(60)
