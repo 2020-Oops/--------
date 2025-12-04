@@ -21,69 +21,24 @@ from sound_manager import SoundManager
 from brick_system import Brick, BrickType, LevelManager, BRICK_CONFIG
 
 from game_config import (
+    WINDOW_WIDTH, WINDOW_HEIGHT,
+    WHITE, BLACK, RED, BLUE, GREEN, YELLOW, CYAN, MAGENTA,
+    MENU_COLOR, MENU_HOVER_COLOR, MENU_SELECTED_COLOR,
+    BUTTON_BG_COLOR, BUTTON_BORDER_COLOR,
+    PADDLE_WIDTH, PADDLE_HEIGHT, PADDLE_SPEED,
+    BALL_RADIUS,
+    BRICK_ROWS, BRICK_COLS, BRICK_WIDTH, BRICK_HEIGHT, BRICK_PADDING,
+    INITIAL_LIVES, SCORE_PER_BRICK, MAX_HORIZONTAL_BOUNCE_SPEED,
+    FONT_SIZE, LARGE_FONT_SIZE, MENU_FONT_SIZE, SMALL_FONT_SIZE,
+    HEART_SIZE, HEART_PADDING,
+    WALL_THICKNESS,
+    ASSETS_DIR, DATA_DIR, MUSIC_FILE, HEART_IMAGE_FILE,
+    MUSIC_VOLUME, HIGH_SCORES_FILE,
     NEON_THEME, MIN_VERTICAL_SPEED_RATIO, MAX_BOUNCE_ANGLE_DEG,
     BASE_BALL_SPEED, MAX_BALL_SPEED, SPEED_INCREASE_PER_LEVEL
 )
 
-WIDTH, HEIGHT = 900, 600
-
-# Кольори (Mapped to Neon Theme)
-WHITE = NEON_THEME['TEXT_MAIN']
-BLACK = NEON_THEME['BACKGROUND']
-RED = NEON_THEME['BUTTON_HOVER']     # Magenta as Red replacement
-BLUE = NEON_THEME['BUTTON_BORDER']   # Cyan as Blue replacement
-GREEN = (57, 255, 20)                # Neon Green
-YELLOW = (255, 255, 0)               # Neon Yellow
-CYAN = NEON_THEME['TEXT_ACCENT']
-MAGENTA = (255, 0, 255)
-
-# Кольори меню
-MENU_COLOR = NEON_THEME['TEXT_ACCENT']
-MENU_HOVER_COLOR = NEON_THEME['BUTTON_HOVER']
-MENU_SELECTED_COLOR = NEON_THEME['BUTTON_HOVER']
-BUTTON_BG_COLOR = NEON_THEME['BUTTON_BG']
-BUTTON_BORDER_COLOR = NEON_THEME['BUTTON_BORDER']
-
-# Параметри платформи
-PADDLE_WIDTH = 120
-PADDLE_HEIGHT = 10
-PADDLE_SPEED = 10
-
-# Параметри м'яча
-BALL_RADIUS = 15
-
-# Параметри цеглинок
-BRICK_ROWS = 5
-BRICK_COLS = 10
-BRICK_WIDTH = 55
-BRICK_HEIGHT = 20
-BRICK_PADDING = 5
-
-# Ігрові параметри
-INITIAL_LIVES = 3
-SCORE_PER_BRICK = 10
-MAX_HORIZONTAL_BOUNCE_SPEED = 10
-
-# Параметри UI
-FONT_SIZE = 42
-LARGE_FONT_SIZE = 100
-MENU_FONT_SIZE = 36
-SMALL_FONT_SIZE = 28
-HEART_SIZE = 35
-HEART_PADDING = 8
-
-# Параметри стін
-WALL_THICKNESS = 3
-
-# Файли ресурсів (використовуємо pathlib для коректних шляхів)
-from pathlib import Path
-ASSETS_DIR = Path(__file__).parent.parent / 'assets'
-DATA_DIR = Path(__file__).parent.parent / 'data'
-
-MUSIC_FILE = str(ASSETS_DIR / 'music' / 'chiptune-ending-212716.mp3')
-HEART_IMAGE_FILE = str(ASSETS_DIR / 'images' / 'heart.png')
-MUSIC_VOLUME = 0.5
-HIGH_SCORES_FILE = str(DATA_DIR / 'high_scores.json')
+WIDTH, HEIGHT = WINDOW_WIDTH, WINDOW_HEIGHT
 
 # =============================================================================
 # ІНІЦІАЛІЗАЦІЯ PYGAME
