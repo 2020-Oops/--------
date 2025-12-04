@@ -18,3 +18,14 @@ __pycache__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Archive
+archive/
+
+# Data files (can be shared if needed)
+# data/high_scores.json
+
+# Distribution
+dist/
+build/
+*.egg-info/
