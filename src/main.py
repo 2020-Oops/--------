@@ -19,6 +19,7 @@ from graphics_effects import (
 from bonus_system import BonusManager, BonusType
 from sound_manager import SoundManager
 from brick_system import Brick, BrickType, LevelManager, BRICK_CONFIG
+from entities import Paddle, Ball
 
 from game_config import (
     WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -97,15 +98,14 @@ bonus_manager = BonusManager()
 initial_paddle_x = WIDTH // 2 - PADDLE_WIDTH // 2
 initial_paddle_y = HEIGHT - 40
 original_paddle_width = PADDLE_WIDTH
-paddle = pygame.Rect(initial_paddle_x, initial_paddle_y, PADDLE_WIDTH, PADDLE_HEIGHT)
+paddle = Paddle(initial_paddle_x, initial_paddle_y)
 
 initial_ball_x = paddle.centerx - BALL_RADIUS
 initial_ball_y = paddle.top - BALL_RADIUS * 2
 ball_rect_template = pygame.Rect(initial_ball_x, initial_ball_y, BALL_RADIUS * 2, BALL_RADIUS * 2)
 
 # Підтримка мультиболу
-balls = []  # Список м'ячів
-ball_speeds = []  # Швидкості для кожного м'яча
+balls = []  # Список об'єктів Ball
 
 # Параметри напрямку м'яча
 initial_ball_direction_x = 5
@@ -144,9 +144,9 @@ def setup_level(level_num):
     # Скидаємо м'яч
     reset_ball()
 
-    paddle.x = initial_paddle_x
-    paddle.y = initial_paddle_y
-    paddle.width = original_paddle_width
+    paddle.rect.x = initial_paddle_x
+    paddle.rect.y = initial_paddle_y
+    paddle.set_width(original_paddle_width)
 
     # Створюємо цеглинки через LevelManager
     bricks = level_manager.create_level(level_num)
@@ -155,17 +155,16 @@ def setup_level(level_num):
 
 def reset_ball():
     """Скидає м'яч на початкову позицію"""
-    global balls, ball_speeds
+    global balls
     
-    start_ball = ball_rect_template.copy()
-    start_ball.x = initial_ball_x
-    start_ball.y = initial_ball_y
+    start_ball = Ball(initial_ball_x, initial_ball_y, BALL_RADIUS, WHITE)
     
     vx = normalized_initial_vx * current_speed_magnitude
     vy = normalized_initial_vy * current_speed_magnitude
     
+    start_ball.set_velocity(vx, vy)
+    
     balls = [start_ball]
-    ball_speeds = [[vx, vy]]
 
 def toggle_fullscreen():
     global win, is_fullscreen
@@ -217,7 +216,7 @@ def activate_multiball():
         
     # Беремо перший м'яч як основу
     base_ball = balls[0]
-    base_vx, base_vy = ball_speeds[0]
+    base_vx, base_vy = base_ball.vx, base_ball.vy
     
     # Створюємо 2 нових м'яча
     for angle_offset in [-0.5, 0.5]:
@@ -231,8 +230,8 @@ def activate_multiball():
         new_vx = math.cos(new_angle) * speed
         new_vy = math.sin(new_angle) * speed
         
+        new_ball.set_velocity(new_vx, new_vy)
         balls.append(new_ball)
-        ball_speeds.append([new_vx, new_vy])
 
 def render_ui(win, font, large_font):
     score_text = font.render(f"Рахунок: {score}", True, WHITE)
@@ -530,21 +529,19 @@ while running:
     # Ігрова логіка
     if game_state == 'playing':
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] and paddle.left > 0:
-            paddle.move_ip(-PADDLE_SPEED, 0)
-        if keys[pygame.K_RIGHT] and paddle.right < WIDTH:
-            paddle.move_ip(PADDLE_SPEED, 0)
+        if keys[pygame.K_LEFT]:
+            paddle.move(-PADDLE_SPEED, WIDTH)
+        if keys[pygame.K_RIGHT]:
+            paddle.move(PADDLE_SPEED, WIDTH)
             
         # Застосування ефектів бонусів
         # 1. Розмір платформи
         target_width = original_paddle_width * bonus_manager.get_paddle_modifier()
         if abs(paddle.width - target_width) > 1:
-            center = paddle.centerx
-            paddle.width = int(target_width)
-            paddle.centerx = center
+            paddle.set_width(int(target_width))
             
         # 2. Збирання бонусів
-        collected_bonuses = bonus_manager.check_collection(paddle)
+        collected_bonuses = bonus_manager.check_collection(paddle.rect)
         for bonus in collected_bonuses:
             sound_manager.play_powerup()
             particle_system.create_sparkle(bonus.rect.centerx, bonus.rect.centery, bonus.color)
@@ -562,14 +559,20 @@ while running:
         
         for i in range(len(balls)):
             b = balls[i]
-            vx, vy = ball_speeds[i]
             
-            # Застосовуємо модифікатор швидкості
-            current_vx = vx * speed_modifier
-            current_vy = vy * speed_modifier
+            # Застосовуємо модифікатор швидкості (тимчасово змінюємо швидкість для оновлення)
+            original_vx, original_vy = b.vx, b.vy
+            b.vx *= speed_modifier
+            b.vy *= speed_modifier
             
-            b.x += current_vx
-            b.y += current_vy
+            b.update()
+            
+            # Повертаємо базову швидкість (щоб ефект не накопичувався експоненційно, якщо він застосовується щокадру)
+            # Але тут логіка трохи складна. Якщо speed_modifier = 1.0, то все ок.
+            # Якщо ми хочемо щоб м'яч рухався швидше, ми маємо змінювати позицію на більшу величину.
+            # b.update() використовує b.vx, b.vy.
+            # Краще просто відновити вектори, бо update вже змінив rect.
+            b.vx, b.vy = original_vx, original_vy
             
             # Додаємо трейл
             if i == 0: # Трейл тільки для основного м'яча для продуктивності
@@ -577,26 +580,26 @@ while running:
             
             # Відбиття від стін
             if b.left <= WALL_THICKNESS:
-                b.left = WALL_THICKNESS
-                ball_speeds[i][0] = abs(vx)
+                b.rect.left = WALL_THICKNESS
+                b.vx = abs(b.vx)
                 sound_manager.play_wall_hit()
             elif b.right >= WIDTH - WALL_THICKNESS:
-                b.right = WIDTH - WALL_THICKNESS
-                ball_speeds[i][0] = -abs(vx)
+                b.rect.right = WIDTH - WALL_THICKNESS
+                b.vx = -abs(b.vx)
                 sound_manager.play_wall_hit()
             
             if b.top <= WALL_THICKNESS:
-                b.top = WALL_THICKNESS
-                ball_speeds[i][1] = abs(vy)
+                b.rect.top = WALL_THICKNESS
+                b.vy = abs(b.vy)
                 sound_manager.play_wall_hit()
 
             # Відбиття від платформи
-            if b.colliderect(paddle):
-                if ball_speeds[i][1] > 0: # Тільки якщо летить вниз
+            if b.rect.colliderect(paddle.rect):
+                if b.vy > 0: # Тільки якщо летить вниз
                     sound_manager.play_paddle_hit()
-                    speed_before_bounce = math.sqrt(vx**2 + vy**2)
+                    speed_before_bounce = math.sqrt(b.vx**2 + b.vy**2)
 
-                    b.bottom = paddle.top
+                    b.rect.bottom = paddle.top
                     
                     # Розрахунок кута відбиття на основі позиції удару
                     difference_from_center = b.centerx - paddle.centerx
@@ -621,12 +624,12 @@ while running:
                         arg = max(0, speed_before_bounce**2 - new_vy**2)
                         new_vx = new_vx_sign * math.sqrt(arg)
 
-                    ball_speeds[i][0] = new_vx
-                    ball_speeds[i][1] = new_vy
+                    b.vx = new_vx
+                    b.vy = new_vy
 
             # Зіткнення з цеглинками
             for brick in bricks:
-                if brick.visible and b.colliderect(brick.rect):
+                if brick.visible and b.rect.colliderect(brick.rect):
                     # Перевіряємо тип м'яча для вогняного режиму
                     is_fire_ball = bonus_manager.has_active_effect(BonusType.FIRE_BALL)
                     
@@ -695,17 +698,17 @@ while running:
                         overlap_y = min(b.bottom - brick.rect.top, brick.rect.bottom - b.top)
                         
                         if overlap_x < overlap_y:
-                            ball_speeds[i][0] = -ball_speeds[i][0]
+                            b.vx = -b.vx
                             if ball_center_x < brick_center_x:
-                                b.right = brick.rect.left
+                                b.rect.right = brick.rect.left
                             else:
-                                b.left = brick.rect.right
+                                b.rect.left = brick.rect.right
                         else:
-                            ball_speeds[i][1] = -ball_speeds[i][1]
+                            b.vy = -b.vy
                             if ball_center_y < brick_center_y:
-                                b.bottom = brick.rect.top
+                                b.rect.bottom = brick.rect.top
                             else:
-                                b.top = brick.rect.bottom
+                                b.rect.top = brick.rect.bottom
                     else:
                         # Вогняний м'яч - додаткові частинки
                         sound_manager.play_fire_hit()
@@ -724,7 +727,6 @@ while running:
         # Видалення втрачених м'ячів (у зворотному порядку щоб не збити індекси)
         for index in sorted(balls_to_remove, reverse=True):
             balls.pop(index)
-            ball_speeds.pop(index)
             
         # Якщо всі м'ячі втрачено
         if not balls:
@@ -783,11 +785,11 @@ while running:
             ball_trail.draw(game_surface, RED, BALL_RADIUS)
             
             # 3D платформа
-            draw_3d_paddle(game_surface, paddle)
+            paddle.draw(game_surface)
             
             # М'ячі
             for b in balls:
-                draw_glowing_ball(game_surface, b, RED, glow_radius=8)
+                b.draw(game_surface)
         
         # Відрисовка бонусів
         bonus_manager.draw_bonuses(game_surface, current_time)
