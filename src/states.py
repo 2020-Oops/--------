@@ -160,8 +160,11 @@ class MainMenuState(GameState):
         self.menu_items = ["ПОЧАТИ ГРУ", "РЕКОРДИ", "ВИХІД"]
         self.font = pygame.font.Font(None, LARGE_FONT_SIZE)
         self.menu_font = pygame.font.Font(None, MENU_FONT_SIZE)
+        self.button_rects = []  # Зберігаємо прямокутники кнопок для миші
+        self.hovered_index = -1  # Індекс кнопки під курсором
     
     def handle_event(self, event):
+        # Клавіатура
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 if self.context.is_fullscreen:
@@ -175,14 +178,42 @@ class MainMenuState(GameState):
                 self.context.sound_manager.play_menu_move()
                 self.selected_index = (self.selected_index + 1) % 3
             elif event.key == pygame.K_RETURN:
-                self.context.sound_manager.play_menu_select()
-                if self.selected_index == 0:
-                    self.context.initialize_game_data()
-                    return 'playing'
-                elif self.selected_index == 1:
-                    return 'high_scores'
-                elif self.selected_index == 2:
-                    self.context.running = False
+                return self._select_menu_item()
+        
+        # Миша - рух
+        elif event.type == pygame.MOUSEMOTION:
+            mouse_pos = event.pos
+            old_hovered = self.hovered_index
+            self.hovered_index = -1
+            
+            for i, rect in enumerate(self.button_rects):
+                if rect.collidepoint(mouse_pos):
+                    self.hovered_index = i
+                    if old_hovered != i and old_hovered != -1:
+                        self.context.sound_manager.play_menu_move()
+                    break
+        
+        # Миша - клік
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:  # Ліва кнопка
+                mouse_pos = event.pos
+                for i, rect in enumerate(self.button_rects):
+                    if rect.collidepoint(mouse_pos):
+                        self.selected_index = i
+                        return self._select_menu_item()
+        
+        return None
+    
+    def _select_menu_item(self):
+        """Виконує дію вибраного пункту меню"""
+        self.context.sound_manager.play_menu_select()
+        if self.selected_index == 0:
+            self.context.initialize_game_data()
+            return 'playing'
+        elif self.selected_index == 1:
+            return 'high_scores'
+        elif self.selected_index == 2:
+            self.context.running = False
         return None
     
     def update(self, dt):
@@ -203,6 +234,9 @@ class MainMenuState(GameState):
         button_spacing = 20
         start_y = 250
         
+        # Очищаємо список кнопок
+        self.button_rects = []
+        
         for i, item in enumerate(self.menu_items):
             button_rect = pygame.Rect(
                 WIDTH // 2 - button_width // 2,
@@ -210,12 +244,17 @@ class MainMenuState(GameState):
                 button_width,
                 button_height
             )
-            draw_button(surface, item, button_rect, self.menu_font, i == self.selected_index)
+            self.button_rects.append(button_rect)
+            
+            # Визначаємо чи кнопка вибрана або під курсором
+            is_selected = i == self.selected_index or i == self.hovered_index
+            draw_button(surface, item, button_rect, self.menu_font, is_selected)
         
         # Інструкції
         mode_text = "Повноекранний режим" if self.context.is_fullscreen else "Віконний режим"
         instructions = [
-            "Керування: Стрілки ← →",
+            "Керування: Стрілки ← → або миша",
+            "Вибір: Enter або клік мишкою",
             "Пауза: ESC або P",
             f"Режим: {mode_text} (F11 - перемкнути)",
             "ESC - вихід з повноекранного" if self.context.is_fullscreen else "ESC - вихід з гри"
@@ -297,11 +336,15 @@ class PauseState(GameState):
         self.menu_items = ["ПРОДОВЖИТИ", "ГОЛОВНЕ МЕНЮ"]
         self.font = pygame.font.Font(None, LARGE_FONT_SIZE)
         self.menu_font = pygame.font.Font(None, MENU_FONT_SIZE)
+        self.button_rects = []
+        self.hovered_index = -1
     
     def on_enter(self):
         self.selected_index = 0
+        self.hovered_index = -1
     
     def handle_event(self, event):
+        # Клавіатура
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_UP:
                 self.context.sound_manager.play_menu_move()
@@ -310,13 +353,41 @@ class PauseState(GameState):
                 self.context.sound_manager.play_menu_move()
                 self.selected_index = (self.selected_index + 1) % 2
             elif event.key == pygame.K_RETURN:
-                self.context.sound_manager.play_menu_select()
-                if self.selected_index == 0:
-                    return 'playing'
-                elif self.selected_index == 1:
-                    return 'main_menu'
+                return self._select_menu_item()
             elif event.key == pygame.K_ESCAPE:
                 return 'playing'
+        
+        # Миша - рух
+        elif event.type == pygame.MOUSEMOTION:
+            mouse_pos = event.pos
+            old_hovered = self.hovered_index
+            self.hovered_index = -1
+            
+            for i, rect in enumerate(self.button_rects):
+                if rect.collidepoint(mouse_pos):
+                    self.hovered_index = i
+                    if old_hovered != i and old_hovered != -1:
+                        self.context.sound_manager.play_menu_move()
+                    break
+        
+        # Миша - клік
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1:
+                mouse_pos = event.pos
+                for i, rect in enumerate(self.button_rects):
+                    if rect.collidepoint(mouse_pos):
+                        self.selected_index = i
+                        return self._select_menu_item()
+        
+        return None
+    
+    def _select_menu_item(self):
+        """Виконує дію вибраного пункту"""
+        self.context.sound_manager.play_menu_select()
+        if self.selected_index == 0:
+            return 'playing'
+        elif self.selected_index == 1:
+            return 'main_menu'
         return None
     
     def update(self, dt):
@@ -340,6 +411,9 @@ class PauseState(GameState):
         button_spacing = 20
         start_y = 280
         
+        # Очищаємо список кнопок
+        self.button_rects = []
+        
         for i, item in enumerate(self.menu_items):
             button_rect = pygame.Rect(
                 WIDTH // 2 - button_width // 2,
@@ -347,7 +421,11 @@ class PauseState(GameState):
                 button_width,
                 button_height
             )
-            draw_button(surface, item, button_rect, self.menu_font, i == self.selected_index)
+            self.button_rects.append(button_rect)
+            
+            # Визначаємо чи кнопка вибрана або під курсором
+            is_selected = i == self.selected_index or i == self.hovered_index
+            draw_button(surface, item, button_rect, self.menu_font, is_selected)
 
 
 class LevelTransitionState(GameState):
