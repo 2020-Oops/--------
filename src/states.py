@@ -16,6 +16,7 @@ from game_config import (
 )
 from graphics_effects import draw_pulsing_text, draw_neon_heart
 from bonus_system import BonusType
+import physics
 
 
 class GameState(ABC):
@@ -496,123 +497,17 @@ class PlayingState(GameState):
                 ctx.ball_trail.add_position(b.centerx, b.centery)
             
             # Відбиття від стін
-            if b.left <= WALL_THICKNESS:
-                b.rect.left = WALL_THICKNESS
-                b.vx = abs(b.vx)
-                ctx.sound_manager.play_wall_hit()
-            elif b.right >= WIDTH - WALL_THICKNESS:
-                b.rect.right = WIDTH - WALL_THICKNESS
-                b.vx = -abs(b.vx)
-                ctx.sound_manager.play_wall_hit()
-            
-            if b.top <= WALL_THICKNESS:
-                b.rect.top = WALL_THICKNESS
-                b.vy = abs(b.vy)
-                ctx.sound_manager.play_wall_hit()
+            physics.handle_wall_collision(b, ctx.sound_manager)
             
             # Відбиття від платформи
-            if b.rect.colliderect(ctx.paddle.rect):
-                if b.vy > 0:
-                    ctx.sound_manager.play_paddle_hit()
-                    speed_before_bounce = math.sqrt(b.vx**2 + b.vy**2)
-                    
-                    b.rect.bottom = ctx.paddle.top
-                    
-                    difference_from_center = b.centerx - ctx.paddle.centerx
-                    normalized_difference = difference_from_center / (ctx.paddle.width / 2.0)
-                    normalized_difference = max(-1.0, min(normalized_difference, 1.0))
-                    
-                    bounce_angle_rad = normalized_difference * math.radians(MAX_BOUNCE_ANGLE_DEG)
-                    
-                    new_vx = speed_before_bounce * math.sin(bounce_angle_rad)
-                    new_vy = -abs(speed_before_bounce * math.cos(bounce_angle_rad))
-                    
-                    min_vy = speed_before_bounce * MIN_VERTICAL_SPEED_RATIO
-                    if abs(new_vy) < min_vy:
-                        new_vy = -min_vy
-                        new_vx_sign = 1 if new_vx > 0 else -1
-                        arg = max(0, speed_before_bounce**2 - new_vy**2)
-                        new_vx = new_vx_sign * math.sqrt(arg)
-                    
-                    b.vx = new_vx
-                    b.vy = new_vy
+            physics.handle_paddle_collision(b, ctx.paddle, ctx.sound_manager)
             
             # Зіткнення з цеглинками
-            for brick in ctx.bricks:
-                if brick.visible and b.rect.colliderect(brick.rect):
-                    is_fire_ball = ctx.bonus_manager.has_active_effect(BonusType.FIRE_BALL)
-                    
-                    hit_result = brick.hit()
-                    
-                    if hit_result['destroyed']:
-                        ctx.score += hit_result['points']
-                        
-                        ctx.particle_system.create_explosion(
-                            brick.rect.centerx, brick.rect.centery,
-                            brick.original_color, num_particles=25
-                        )
-                        ctx.particle_system.create_shockwave(brick.rect.centerx, brick.rect.centery, brick.original_color)
-                        
-                        if hit_result['explosive']:
-                            ctx.sound_manager.play_explosion()
-                            ctx.screen_shake.start(magnitude=5, duration=0.2)
-                            explosion_targets = ctx.level_manager.get_explosion_targets(ctx.bricks, brick)
-                            for target in explosion_targets:
-                                target_result = target.hit()
-                                if target_result['destroyed']:
-                                    ctx.score += target_result['points']
-                                    ctx.particle_system.create_explosion(
-                                        target.rect.centerx, target.rect.centery,
-                                        (255, 100, 0), num_particles=20
-                                    )
-                        
-                        if hit_result['bonus_guaranteed']:
-                            bonus = ctx.bonus_manager.create_random_bonus(brick.rect.centerx, brick.rect.centery)
-                            if bonus:
-                                ctx.bonus_manager.add_bonus(bonus)
-                        else:
-                            bonus = ctx.bonus_manager.create_random_bonus(brick.rect.centerx, brick.rect.centery)
-                            ctx.bonus_manager.add_bonus(bonus)
-                        
-                        ctx.sound_manager.play_brick_hit()
-                    else:
-                        from brick_system import BrickType
-                        if brick.brick_type == BrickType.UNBREAKABLE:
-                            ctx.sound_manager.play_metal_hit()
-                        else:
-                            ctx.sound_manager.play_brick_hit()
-                    
-                    if not is_fire_ball or brick.brick_type == BrickType.UNBREAKABLE:
-                        ball_center_x = b.centerx
-                        ball_center_y = b.centery
-                        brick_center_x = brick.rect.centerx
-                        brick_center_y = brick.rect.centery
-                        
-                        overlap_x = min(b.right - brick.rect.left, brick.rect.right - b.left)
-                        overlap_y = min(b.bottom - brick.rect.top, brick.rect.bottom - b.top)
-                        
-                        if overlap_x < overlap_y:
-                            b.vx = -b.vx
-                            if ball_center_x < brick_center_x:
-                                b.rect.right = brick.rect.left
-                            else:
-                                b.rect.left = brick.rect.right
-                        else:
-                            b.vy = -b.vy
-                            if ball_center_y < brick_center_y:
-                                b.rect.bottom = brick.rect.top
-                            else:
-                                b.rect.top = brick.rect.bottom
-                    else:
-                        ctx.sound_manager.play_fire_hit()
-                        ctx.particle_system.create_explosion(
-                            brick.rect.centerx, brick.rect.centery,
-                            (255, 100, 0), num_particles=15
-                        )
-                    break
+            is_fire_ball = ctx.bonus_manager.has_active_effect(BonusType.FIRE_BALL)
+            physics.handle_brick_collision(b, ctx.bricks, is_fire_ball, ctx)
             
             # Втрата м'яча
-            if b.bottom >= HEIGHT:
+            if physics.check_ball_lost(b):
                 balls_to_remove.append(i)
         
         # Видалення втрачених м'ячів
